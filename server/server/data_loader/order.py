@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from data_loader.util import numericsortkey, sort_and_groupby
 from common.queries import UIDS_IN_ORDER_BY_DIVISION
-
+from common.uid_matcher import UidMatcher
 
 
 
@@ -33,18 +33,11 @@ def further_split_uids(divisions):
 def get_matching_uids(divisions, text_uids, lang):
     """ yields uids belonging to the same division in proper order """
     text_uids = set(text_uids)
-    not_found = set(text_uids)
     
     for division_uid, uids in divisions:
         matches = tuple(uid for uid in uids if uid in text_uids)
         yield matches
-        not_found.difference_update(matches)
-    
-    # By now not_found should be empty!
-    if not_found:
-        bad_uids = ', '.join(sorted(not_found, key=numericsortkey))
-        logging.error(f'Text uids do not match menu uids for ({lang}): {bad_uids}')
-    
+
 
 def get_best_match(text, other_texts):
     author_uid = text['author_uid']
@@ -55,6 +48,40 @@ def get_best_match(text, other_texts):
         if other_text['segmented']:
             return other_text
     return sorted(other_texts, key=lambda t: t['author_uid'])[0] # TODO:Improve
+
+
+def fix_mismatched_uids(texts, divisions):
+    menu_uids = set(itertools.chain.from_iterable(t[1] for t in divisions))
+    text_uids = set(text['uid'] for text in texts)
+    
+    mismatched_uids = text_uids.difference(menu_uids)
+    print(f'{len(mismatched_uids)} texts have mismatched uids, attempting to match')
+    uid_matcher = UidMatcher(all_uids=menu_uids)
+    
+    matches = {}
+    
+    for uid in sorted(mismatched_uids, key=numericsortkey):
+        print(uid)
+        matching_uids = uid_matcher.get_matching_uids(uid)
+        print(f'Matches found for {uid}: {matching_uids}')
+        if matching_uids:
+            matches[uid] = matching_uids
+    
+    updates = {}
+    for text in texts:
+        uid = text['uid']
+        if uid in matches:
+            updates[text['_key']] = {'menu_uids': matches[uid]}
+    
+    return updates  
+    
+
+def update_collections(collection_docs_mapping, all_updates):
+    for collection, texts in collection_docs_mapping:
+            matching_keys = {text['_key'] for text in texts}
+            updates = [{'_key': _key, **update} for _key, update in all_updates.items() if _key in matching_keys]
+            collection.import_bulk(updates, on_duplicate="update")
+
 
 def add_next_prev_using_menu_data(db):
     po_texts = list(db.aql.execute('''
@@ -87,7 +114,9 @@ def add_next_prev_using_menu_data(db):
     divisions = [(doc['division'], tuple(doc['uids'])) for doc in db.aql.execute(UIDS_IN_ORDER_BY_DIVISION)]
     divisions = list(further_split_uids(divisions))
     
+    mismatch_updates = fix_mismatched_uids(texts, divisions)
     
+    update_collections([(db['po_strings'], po_texts), (db['html_text'], html_texts)], mismatch_updates)
     
     # First group texts by language
     for lang, lang_texts in sort_and_groupby(texts, lambda text: text['lang']):
@@ -129,7 +158,6 @@ def add_next_prev_using_menu_data(db):
                             }
                         })
     
-        for collection, texts in [(db['po_strings'], po_texts), (db['html_text'], html_texts)]:
-            matching_keys = {text['_key'] for text in texts}
-            updates = [{'_key': _key, **update} for _key, update in collection_updates.items() if _key in matching_keys]
-            collection.import_bulk(updates, on_duplicate="update")
+        update_collections([(db['po_strings'], po_texts), (db['html_text'], html_texts)], collection_updates)
+
+
