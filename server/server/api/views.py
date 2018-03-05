@@ -323,7 +323,18 @@ class SuttaplexList(Resource):
                 data.append(result)
             _id = f'root/{result["uid"]}'
             edges[_id] = result
-            result['translations'] = sorted(result['translations'], key=language_sort(result['root_lang']))
+            translations = []
+            
+            # Filter translations to allow only one per lang-author
+            # this is only for some obscure edge cases with fuzzy matched
+            # text uids
+            lang_author_pairs = set()
+            for translation in sorted(result['translations'], key=language_sort(result['root_lang'])):
+                key = (translation['lang'], translation['author'])
+                if key not in lang_author_pairs:
+                    translations.append(translation)
+                    lang_author_pairs.add(key)
+            result['translations'] = translations
 
             if parent:
                 try:

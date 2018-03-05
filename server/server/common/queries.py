@@ -140,8 +140,9 @@ SUTTAPLEX_LIST = '''
 FOR v, e, p IN 0..6 OUTBOUND CONCAT('root/', @uid) `root_edges`
     LET legacy_translations = (
         FOR text IN html_text
-            FILTER text.uid == v.uid
+            FILTER text.uid == v.uid OR v.uid IN text.menu_uids
             LET res = {
+                uid: text.uid,
                 lang: text.lang,
                 lang_name: (FOR lang in language FILTER lang.uid == text.lang LIMIT 1 RETURN lang.name)[0],
                 author: text.author,
@@ -158,9 +159,10 @@ FOR v, e, p IN 0..6 OUTBOUND CONCAT('root/', @uid) `root_edges`
 
     LET po_translations = (
         FOR text IN po_strings
-            FILTER text.uid == v.uid
+            FILTER text.uid == v.uid OR v.uid IN text.menu_uids
             SORT text.lang
             RETURN {
+                uid: text.uid,
                 lang: text.lang,
                 lang_name: (FOR lang in language FILTER lang.uid == text.lang LIMIT 1 RETURN lang.name)[0],
                 author: text.author,
