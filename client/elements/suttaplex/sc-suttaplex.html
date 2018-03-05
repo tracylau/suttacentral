@@ -342,7 +342,7 @@
           <div class="author-buttons-container">
             <template is="dom-repeat" items="[[_getUserLanguageTranslations(item.translations, language)]]"
                       as="translation">
-              <a class="author-link" href="[[_getSuttaTextUrl(item.uid, translation.lang, translation.author_uid)]]">
+              <a class="author-link" href="[[_getSuttaTextUrl(translation.uid, translation.lang, translation.author_uid)]]">
                 <paper-button class="author-button" flat
                               title$="{{localize('goToTranslation', 'author', translation.author)}}">
                   [[translation.author_short]]
