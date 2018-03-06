@@ -265,7 +265,7 @@ FOR v, e, p IN OUTBOUND DOCUMENT(CONCAT('root/', @uid)) `relationship`
     
     LET legacy_translations = (
         FOR text IN html_text
-            FILTER text.uid == target.uid
+            FILTER text.uid == target.uid OR v.uid IN text.menu_uids
             LET res = {
                 lang: text.lang,
                 lang_name: (FOR lang in language FILTER lang.uid == text.lang LIMIT 1 RETURN lang.name)[0],
@@ -283,7 +283,7 @@ FOR v, e, p IN OUTBOUND DOCUMENT(CONCAT('root/', @uid)) `relationship`
 
     LET po_translations = (
         FOR text IN po_strings
-            FILTER text.uid == target.uid
+            FILTER text.uid == target.uid OR v.uid IN text.menu_uids
             LET res = {
                 lang: text.lang,
                 lang_name: (FOR lang in language FILTER lang.uid == text.lang LIMIT 1 RETURN lang.name)[0],
@@ -294,7 +294,7 @@ FOR v, e, p IN OUTBOUND DOCUMENT(CONCAT('root/', @uid)) `relationship`
                 segmented: true
             }
             //Text.strings[1][1] is a temporary hack, we have to wait for Blake to finish data manipulation.
-            RETURN (text.lang == @language) ? MERGE(res, {title: text.strings[1][1]}) : res
+            RETURN (text.lang == @language) ? MERGE(res, {title: text.title}) : res
     )
     
     LET legacy_volpages = (

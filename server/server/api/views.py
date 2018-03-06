@@ -241,7 +241,24 @@ class Menu(Resource):
                 self.recursive_cleanup(children, mapping=mapping)
 
 
+
+
 class SuttaplexList(Resource):
+    @staticmethod
+    def filter_translations(translations):
+        # Filter translations to allow only one per lang-author
+        # this is only for some obscure edge cases with fuzzy matched
+        # text uids
+        result = []
+        lang_author_pairs = set()
+        for translation in translations:
+            key = (translation['lang'], translation['author'])
+            if key not in lang_author_pairs:
+                result.append(translation)
+                lang_author_pairs.add(key)
+        return result
+    
+    
     @cache.cached(key_prefix=make_cache_key, timeout=600)
     def get(self, uid):
         """
@@ -325,16 +342,8 @@ class SuttaplexList(Resource):
             edges[_id] = result
             translations = []
             
-            # Filter translations to allow only one per lang-author
-            # this is only for some obscure edge cases with fuzzy matched
-            # text uids
-            lang_author_pairs = set()
-            for translation in sorted(result['translations'], key=language_sort(result['root_lang'])):
-                key = (translation['lang'], translation['author'])
-                if key not in lang_author_pairs:
-                    translations.append(translation)
-                    lang_author_pairs.add(key)
-            result['translations'] = translations
+            result['translations'] = sorted(self.filter_translations(result['translations']), 
+                                            key=language_sort(result['root_lang']))
 
             if parent:
                 try:
@@ -421,7 +430,7 @@ class Parallels(Resource):
                 data[_from].append(result)
             except KeyError:
                 data[_from] = [result]
-            result['to']['translations'] = sorted(result['to']['translations'],
+            result['to']['translations'] = sorted(SuttaplexList.filter_translations(result['to']['translations']),
                                                   key=language_sort(result['to']['root_lang']))
         for entry in data:
             data[entry] = sorted(data[entry], key=sort_parallels_type_key)
